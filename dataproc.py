@@ -83,10 +83,18 @@ class TrackDataset():
         imgs_path = os.path.join(data_path, img_path)
         csv_path = os.path.join(data_path, driving_log)
         dt = pd.read_csv(csv_path)
-        center = pd.DataFrame({'image':dt.center, 'steering':dt.steering})
-        right = pd.DataFrame({'image':dt.right, 'steering':dt.steering})
-        left = pd.DataFrame({'image':dt.left, 'steering':dt.steering})
+        right_steering = self._adjust_angles(dt.steering, side='right')
+        left_steering = self._adjust_angles(dt.steering, side='left')
+        center = pd.DataFrame({'image':dt.center, 'steering':df.steering})
+        right = pd.DataFrame({'image':dt.right, 'steering':right_steering})
+        left = pd.DataFrame({'image':dt.left, 'steering':left_steering})
         self._data = pd.concat([center, left, right], ignore_index=True)
+    def _adjust_angles(angles, side='right', adjust=0.25):
+        if side == 'right':
+            adjust *= -1
+        elif:
+            raise ValueError('Unknown adjustment side')
+        return np.arctan(np.tan(angles) + adjust)
     def load(self, filename='data/dataset.p'):
         with open(filename, 'rb') as fd:
              self.__dict__ = pickle.load(fd)
