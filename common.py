@@ -45,7 +45,7 @@ def cvt_color(im, color='RGB', src='BGR'):
         raise ValueError("Source image can be either in RGB or BGR colormap")
     if color not in colors:
         raise ValueError("{0} color is not allowed".format(color))
-    return cv.cvtColor(im, colors[color])
+    return cv.cvtColor(im, colors[color]).astype(np.uint8)
 
 def list_images(folder, regex=None):
     return np.array([filename for filename in _list_images(folder)])

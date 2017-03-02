@@ -33,6 +33,8 @@ import importlib
 
 from sklearn.model_selection import train_test_split
 
+importlib.reload(common)
+
 class Augment():
     def __new__(cls, *args, **kvargs):
         raise ValueError('Not possible to create instance of this class')
@@ -45,68 +47,101 @@ class Augment():
         else:
            rnd.seed(seed)
     @staticmethod
-    def brightness(im, lbl, low=0.3, high=1.2, p=0.5, np=0.5):
-        if rnd.choice([1,0], p=[p, np]) == 1:
-            hsv = common.cvt_color(img, color='HSV', src='RGB')
+    def brightness(im, lbl, low=0.2, high=1.1, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            hsv = np.float32(common.cvt_color(np.uint8(im), color='HSV', src='RGB'))
             adjust = rnd.uniform(low=low, high=high)
             hsv[:,:,2] *= adjust
-            return (cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB), lbl)
-        return im, lbl
+            return cv.cvtColor(np.uint8(hsv), cv.COLOR_HSV2RGB), lbl
+        else:
+            return im, lbl
     @staticmethod
-    def flip_horizontal(im, lbl, p=0.5, np=0.5):
-        assert((p + np) == 1)
-        if rnd.choice([1,0], p=[p, np]) == 1:
-            return (np.fliplr(im), -lbl)
-        return (im, lbl)
+    def flip_horizontal(im, lbl, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            return np.fliplr(im), -lbl
+        else:
+            return im, lbl
     @staticmethod
-    def shadow(im, lbl, low=0.4, hight=0.9, p=0.5, np=0.5):
-        if rnd.choice([1,0], p=[p, np]) == 1:
+    def shadow(im, lbl, low=0.4, high=0.8, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            im = np.float32(im)
             height, width, _ = im.shape
-            adjust = rnd.uniform(low=0, high=width)
+            adjust = rnd.uniform(low=0, high=high)
             xu, xd = rnd.uniform(low=0, high=width, size=2)
-            alpha = height / (xu - xd)
-            beta = - (k * xu)
-            side = rnd.uniform([0, 1])
-            for row in height:
-                col = np.uint32((col - beta) / alpha)
-                if side == 0:
+            alpha = height / (xd - xu)
+            beta = - (alpha * xu)
+            side = rnd.choice([0, 1])
+            for row in range(height):
+                col = np.int32((row - beta) / alpha)
+                if side == 1:
                     im[row,:col] *= adjust
                 else:
                     im[row,col:] *= adjust
-            return im.astype(np.uint8), lbl
-        return im, lbl
+            return np.uint8(im), lbl
+        else:
+            return im, lbl
     @staticmethod
-    def crop_height(im, lbl, top=(0.3, 0.450), bottom=(0.075, 0.175), p=1, np=0):
-        yt = np.uint32(rnd.uniform(*top))
-        yb = np.uint32(rnd.uniform(*bottom))
-        return im[yt:-yb], lbl
+    def crop_height(im, lbl, top=(0.3, 0.450), bottom=(0.075, 0.175)):
+        yt = int(rnd.uniform(low=top[0], high=top[1]) * im.shape[0])
+        yb = int(rnd.uniform(low=bottom[0], high=bottom[1]) * im.shape[0])
+        return im[yt:-yb,:,:], lbl
 
 class TrackDataset():
-    def __init__(self, data_path='data/', driving_log='driving_log.csv', img_path='IMG/'):
-        self._images_path = os.path.join(data_path, img_path)
+    def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
+        self._data_path = data_path
+        self._images_path = os.path.join(data_path, im_path)
         csv_path = os.path.join(data_path, driving_log)
         self._load_steering_data(csv_path)
+        self._split_skewed()
         self._split_valid_train()
-        self._skewed_angles = None
         self._batch_x_shape = None
-        self._batch_x_shape = None 
         self._batch_y_shape = None 
         self._mode = None
         self._color = None
-    def init_batch_generator(self, batch_size=128, image_size=(128,128), mode='train', color='RGB'):
-        self._batch_x_shape = (batch_size, *image_size)
+    def init_batch_generator(self, batch_size=128, image_size=(128,128,3), color='RGB'):
         self._batch_x_shape = (batch_size, *image_size)
         self._batch_y_shape = (batch_size, 1)
+        self._color = color
+    def batch_generator(self, mode='train'):
         if mode != 'train' and mode != 'valid':
             raise ValueError('Unknown mode {0}'.format(mode))
-        self._mode = mode
-        self._color = color
-    def batch_generator():
+        skewed_size = np.uint32(self._train.steering.value_counts().max() *
+                                self._skewed_count *
+                                0.85)
+        train_size = skewed_size + self._train.shape[0]
+        batch_shape = self._batch_x_shape
         batch_size = self._batch_x_shape[0]
-        x = np.zeros(self._batch_x_shape)
-        y = np.zeros(self._batch_y_shape)
-        while self:
-            #for i in range(batch_size):
+        im_shape = self._batch_x_shape[1:3]
+        mark = 0
+        print(im_shape, batch_shape)
+        im_std = 1.0 / np.sqrt(batch_shape[1] * batch_shape[2] * batch_shape[3])
+        while True:
+            print("MARK: {0}".format(mark))
+            mark += 1
+            x = np.zeros(self._batch_x_shape)
+            y = np.zeros(self._batch_y_shape)
+            if mode == 'train':
+                skewed_samples = self._sample_from_skewed(skewed_size)
+                data = self._train.append(skewed_samples)
+                data.reset_index(inplace=True, drop=True)
+            else:
+                data = self._valid
+            batch = self._sample_batch(data, batch_size)
+            for i in batch.index:
+                filename = batch.loc[i, 'image']
+                steering = batch.loc[i, 'steering']
+                im_path = os.path.join(self._data_path, filename.strip())
+                if not os.path.exists(im_path):
+                    raise ValueError('Image not found {0}'.format(im_path))
+                print(im_path, self._color)
+                im = common.load_image(im_path, color=self._color)
+                im, y_ = self._augment(im, steering)
+                plt.imshow(im); plt.show()
+                im = cv.resize(im, im_shape).astype(np.float32)
+                xmean = np.mean(im)
+                xstd = max(np.std(im, ddof=1), im_std)
+                x[i] = (im - xmean) / xstd
+                y[i] = y_
             yield x, y
     def show_histograms(self):
         matplotlib.rc('xtick', labelsize=15)
@@ -127,6 +162,20 @@ class TrackDataset():
         self._data.steering.hist(ax=ax1, alpha=0.5, bins=100)
         self._data.steering.hist(ax=ax2, alpha=0.5, bins=100)
         fig.show()
+        fig, (ax1, ax2) = plt.subplots(nrows=2)
+        fig.canvas.set_window_title('Valid dataset distribution')
+        ax1.set_title('normal scale')
+        ax2.set_title('log scaled')
+        ax2.set_yscale('log')
+        self._valid.steering.hist(ax=ax1, alpha=0.5, bins=100)
+        self._valid.steering.hist(ax=ax2, alpha=0.5, bins=100)
+        fig.show()
+    def _augment(self, im, steering):
+        im, steering = Augment.crop_height(im, steering)
+        im, steering = Augment.flip_horizontal(im, steering)
+        im, steering = Augment.brightness(im, steering)
+        im, steering = Augment.shadow(im, steering)
+        return im, steering
     def _load_steering_data(self, csv_path):
         dt = pd.read_csv(csv_path)
         right_steering = self._adjust_angles(dt.steering, side='right')
@@ -136,11 +185,43 @@ class TrackDataset():
         left = pd.DataFrame({'image':dt.left, 'steering':left_steering})
         self._dt = dt
         self._data = pd.concat([center, left, right], ignore_index=True)
-    def _split_valid_train(self, skewmax=1000):
+    def _split_valid_train(self, nonskewed_test_size=0.15):
+        x, xval, y, yval = train_test_split(
+             self._nonskewed_data.image,
+             self._nonskewed_data.steering,
+             test_size=nonskewed_test_size)
+        _, counts  = np.unique(yval, return_counts=True)
+        sample_size = np.uint32(self._skewed_count * counts.max() * 0.85)
+        skewed_samples = self._sample_from_skewed(sample_size, drop=True)
+        xval = xval.append(skewed_samples.image)
+        yval = yval.append(skewed_samples.steering)
+        self._train = pd.DataFrame({'image':x, 'steering':y})
+        self._valid = pd.DataFrame({'image':xval, 'steering':yval})
+        self._train.reset_index(inplace=True, drop=True)
+        self._valid.reset_index(inplace=True, drop=True)
+    def _split_skewed(self, skewmax=1000):
         vals = self._data.steering.value_counts()
-        self._skewed_angles = vals.index[vals.values >= skewmax]
-        #nonskewed_data = 
-        #self._xnorm, self._xval, self._ynorm, self._yval = train_test_split(test=0.15)
+        ids = vals.index[vals.values >= skewmax]
+        self._skewed_count = ids.shape[0]
+        skewed_rows = np.where(self._data.steering.isin(ids) == True)[0]
+        nonskewed_rows = np.where(self._data.steering.isin(ids) == False)[0]
+        self._skewed_data = self._data.loc[skewed_rows]
+        self._nonskewed_data = self._data.loc[nonskewed_rows]
+        self._skewed_data.reset_index(inplace=True, drop=True)
+        self._nonskewed_data.reset_index(inplace=True, drop=True)
+    def _sample_from_skewed(self, size, drop=False):
+        rows = rnd.choice(range(self._skewed_data.shape[0]), size=size, replace=False)
+        sliced_data = self._skewed_data.loc[rows]
+        if drop == True:
+            self._skewed_data.drop(rows, inplace=True)
+            self._skewed_data.reset_index(inplace=True, drop=True)
+        sliced_data.reset_index(inplace=True, drop=True)
+        return sliced_data
+    def _sample_batch(self, train, size):
+        rows = rnd.choice(range(train.shape[0]), size=size, replace=False)
+        batch = train.loc[rows]
+        batch.reset_index(inplace=True, drop=True)
+        return batch
     def _adjust_angles(self, angles, side='right', adjust=0.25):
         if side == 'right':
             adjust *= -1
@@ -154,3 +235,7 @@ class TrackDataset():
     def save(self, filename='data/dataset.p'):
         with open(filename, 'wb') as fd:
              pickle.dump(self.__dict__, fd)
+    def save_data(self, filename, data):
+        with open(filename, 'wb') as fd:
+             pickle.dump(data, fd)
+        
