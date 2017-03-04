@@ -260,7 +260,8 @@ In fact augmentation process dived in two phases:
 1. When data are loaded by an instance of `TrackDataset`.
     a. It triples dataset by using `right` and `left` camera frames.
     b. It divides dataset on training and validation sets.
-        - For building validation set I reject all 
+        - For building validation set I reject all
+        
         ```python
         def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
             self._data_path = data_path
