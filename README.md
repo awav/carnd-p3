@@ -316,8 +316,8 @@ Examples of augmented images:
 
 1. When data are loaded by an instance of `TrackDataset`.
 
-a. It triples dataset by using `right` and `left` camera frames
-b. It divides dataset on training and validation sets
+    a. It triples dataset by using `right` and `left` camera frames
+    b. It divides dataset on training and validation sets
 
 For building validation set I reject all spikes from original table. In fact, there was thee spikes: ~`-0.25f`, `0.0f`, ~`0.25f` values. I created for them special data table - called `self._skewed_data`. Using it I can balance training and validation datasets.
 
