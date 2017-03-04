@@ -46,6 +46,8 @@ After reading NVIDIA's paper about driver behaviour cloning, I have decided to u
 
 It happened that this model is hardly trainable and the converge takes too long on my `GTX-1080`, after 10 epochs (5 hours) I had **0.15 validation error** and results of driving were really poor, so that even on first turn the car went into the river.
 
+#### SimpleNet model
+
 I was really disappointed with gained results, but I didn't want to go with NVIDIA solution. After playing with different configurations I stayed with this one, and let's call it as _SimpleNet_:
 * Batch size is `128` - _Same as in DenseNet_
 * Input image shape `(12, 128, 3)` - _Same as in DenseNet_
@@ -64,7 +66,7 @@ Finally, I have gotten good result on first track, after several attempts of bui
 
 > NOTE: As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
 
-##### Architectures
+#### Architectures
 
 **SimpleNet** model architecture:
 ```
