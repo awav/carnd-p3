@@ -33,26 +33,34 @@ The Project
 #### DenseNet based model
 
 After reading NVIDIA's paper about driver behaviour cloning, I have decided to use my own neural network based on DenseNet. I came up with this solution:
-* Batch size is **128**
-* Input image shape **(12, 128, 3)**
-* Input image in **RGB** color map
-* **3** DenseNet blocks
-* **3** layers per each block with growing factor **12**
+* Batch size is `128`
+* Input image shape `(12, 128, 3)`
+* Input image in `RGB` color map
+* `3` DenseNet blocks
+* `3` layers per each block with growing factor `12`
 * Batch normalization before each activation function
-* **ELU** activation function was used, because as I think standard **ReLU** function will not work for _regression problem_. I think that the best activation function for regression challenges is **Leaky ReLU**, but I did not try it in this work.
-* **3** fully connected layers
-* Adam optimizer with **1E-03** learning rate and **1E-08** epsilon
+* `ELU` activation function was used, because as I think standard `ReLU` function will not work for _regression problem_. I think that the best activation function for regression challenges is `Leaky ReLU`, but I did not try it in this work.
+* `3` fully connected layers
+* Adam optimizer with `1E-03` learning rate and `1E-08` epsilon
+* `10` epochs
 
-It happened that this model is hardly trainable and the converge takes too long on my `GTX-1080`, after 10 epochs (5 hours) I had **0.15** validation error and results of driving were really poor, so that even on first turn the car went into the river.
+It happened that this model is hardly trainable and the converge takes too long on my `GTX-1080`, after 10 epochs (5 hours) I had **0.15 validation error** and results of driving were really poor, so that even on first turn the car went into the river.
 
 I was really disappointed with gained results, but I didn't want to go with NVIDIA solution. After playing with different configurations I stayed with this one, and let's call it as _SimpleNet_:
-* Batch size is **128** - _Again_
-* Input image shape **(12, 128, 3)** - _Again_
-* Input image in **RGB** color map - _Again_
-* **4** convolution layers with max pooling:
-    -
-* __ELU__ activation function.
-* 3 fully connected layers
+* Batch size is `128` - _Same as in DenseNet_
+* Input image shape `(12, 128, 3)` - _Same as in DenseNet_
+* Input image in `RGB` color map - _Same as in DenseNet_
+* `4` convolution layers with max pooling
+* `ELU` activation function - _Same as in DenseNet_
+* `3` fully connected layers with following `1` neuron dense layer
+* Adam optimizer with `1E-03` learning rate
+* `20` epochs
+
+I started with learning rate `1E-1` for **Adam** and could get only `0.1 validation error`, but when I decreased learning rate to `1E-04` I have got **0.01 validation error**, such small change improved accuracy significantly. Moreover, the learning
+
+I finally have gotten good result on first track, after several attempts of building neural networks and moreover my car almost finished challenge track.
+
+As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
 
 ##### Architectures
 
@@ -224,92 +232,12 @@ dense_3 (Dense)                  (None, 1)             101         dense_2[0][0]
 Total params: 189,373
 Trainable params: 187,581
 Non-trainable params: 1,792
-____________________________________________________________________________________________________
-None
-____________________________________________________________________________________________________
-Layer (type)                     Output Shape          Param #     Connected to                     
-====================================================================================================
-input_1 (InputLayer)             (None, 128, 128, 3)   0                                            
-____________________________________________________________________________________________________
-convolution2d_1 (Convolution2D)  (None, 128, 128, 16)  432         input_1[0][0]                    
-____________________________________________________________________________________________________
-batchnormalization_1 (BatchNorma (None, 128, 128, 16)  512         convolution2d_1[0][0]            
-____________________________________________________________________________________________________
-activation_1 (Activation)        (None, 128, 128, 16)  0           batchnormalization_1[0][0]       
-____________________________________________________________________________________________________
-convolution2d_2 (Convolution2D)  (None, 128, 128, 12)  1728        activation_1[0][0]               
-____________________________________________________________________________________________________
-merge_1 (Merge)                  (None, 128, 128, 28)  0           convolution2d_1[0][0]            
-                                                                   convolution2d_2[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_2 (BatchNorma (None, 128, 128, 28)  512         merge_1[0][0]                    
-____________________________________________________________________________________________________
-activation_2 (Activation)        (None, 128, 128, 28)  0           batchnormalization_2[0][0]       
-____________________________________________________________________________________________________
-convolution2d_3 (Convolution2D)  (None, 128, 128, 12)  3024        activation_2[0][0]               
-____________________________________________________________________________________________________
-merge_2 (Merge)                  (None, 128, 128, 40)  0           convolution2d_1[0][0]            
-                                                                   convolution2d_2[0][0]            
-                                                                   convolution2d_3[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_3 (BatchNorma (None, 128, 128, 40)  512         merge_2[0][0]                    
-____________________________________________________________________________________________________
-activation_3 (Activation)        (None, 128, 128, 40)  0           batchnormalization_3[0][0]       
-____________________________________________________________________________________________________
-convolution2d_4 (Convolution2D)  (None, 128, 128, 12)  4320        activation_3[0][0]               
-____________________________________________________________________________________________________
-merge_3 (Merge)                  (None, 128, 128, 52)  0           convolution2d_1[0][0]            
-                                                                   convolution2d_2[0][0]            
-                                                                   convolution2d_3[0][0]            
-                                                                   convolution2d_4[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_4 (BatchNorma (None, 128, 128, 52)  512         merge_3[0][0]                    
-____________________________________________________________________________________________________
-activation_4 (Activation)        (None, 128, 128, 52)  0           batchnormalization_4[0][0]       
-____________________________________________________________________________________________________
-convolution2d_5 (Convolution2D)  (None, 128, 128, 52)  2704        activation_4[0][0]               
-____________________________________________________________________________________________________
-averagepooling2d_1 (AveragePooli (None, 64, 64, 52)    0           convolution2d_5[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_5 (BatchNorma (None, 64, 64, 52)    256         averagepooling2d_1[0][0]         
-____________________________________________________________________________________________________
-activation_5 (Activation)        (None, 64, 64, 52)    0           batchnormalization_5[0][0]       
-____________________________________________________________________________________________________
-convolution2d_6 (Convolution2D)  (None, 64, 64, 12)    5616        activation_5[0][0]               
-____________________________________________________________________________________________________
-merge_4 (Merge)                  (None, 64, 64, 64)    0           averagepooling2d_1[0][0]         
-                                                                   convolution2d_6[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_6 (BatchNorma (None, 64, 64, 64)    256         merge_4[0][0]                    
-____________________________________________________________________________________________________
-activation_6 (Activation)        (None, 64, 64, 64)    0           batchnormalization_6[0][0]       
-____________________________________________________________________________________________________
-convolution2d_7 (Convolution2D)  (None, 64, 64, 12)    6912        activation_6[0][0]               
-____________________________________________________________________________________________________
-merge_5 (Merge)                  (None, 64, 64, 76)    0           averagepooling2d_1[0][0]         
-                                                                   convolution2d_6[0][0]            
-                                                                   convolution2d_7[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_7 (BatchNorma (None, 64, 64, 76)    256         merge_5[0][0]                    
-____________________________________________________________________________________________________
-activation_7 (Activation)        (None, 64, 64, 76)    0           batchnormalization_7[0][0]       
-____________________________________________________________________________________________________
-convolution2d_8 (Convolution2D)  (None, 64, 64, 12)    8208        activation_7[0][0]               
-____________________________________________________________________________________________________
-merge_6 (Merge)                  (None, 64, 64, 88)    0           averagepooling2d_1[0][0]         
-                                                                   convolution2d_6[0][0]            
-                                                                   convolution2d_7[0][0]            
-                                                                   convolution2d_8[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_8 (BatchNorma (None, 64, 64, 88)    256         merge_6[0][0]                    
-____________________________________________________________________________________________________
-activation_8 (Activation)        (None, 64, 64, 88)    0           batchnormalization_8[0][0]       
-____________________________________________________________________________________________________
-convolution2d_9 (Convolution2D)  (None, 64, 64, 88)    7744        activation_8[0][0]               
-____________________________________________________________________________________________________
-averagepooling2d_2 (AveragePooli (None, 32, 32, 88)    0           convolution2d_9[0][0]            
-____________________________________________________________________________________________________
-batchnormalization_9 (BatchNorma (None, 32, 32, 88)    128         averagepooling2d_2[0][0]         
-____________________________________________________________________________________________________
-activation_9 (Activation)        (None, 32, 32, 88)    0           batchnormalizatio
 ```
+### Details of Augmentation Process
+
+The trick is that I used only data provided by `Udacity`. I did not use generated data. It encouraged me to explore technique of augmenting once more time after Traffic Sign Classification problem.
+In this project I used random adjustments:
+- Horizontal flips. If flip happens the sign of steering angle changes too.
+- Brightness adjustments by changing the saturation of `HSV` color map. Actually, this should help to adopt model to brightness changes. E.g. challenge track has shiny parts of the track, but also there are places where car should go in absolute 'darkness'.
+- Add shadow to the frame. The logic behind of it the same as for changing brightness. There are some parts of the road which are covered by shadow and the model can erroneously assume that it is border of the road and try to adjust the steering angle.
+- Using frames from left and right camera. This is very important part of augmenting because using it we triple size of dataset.

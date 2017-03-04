@@ -97,7 +97,7 @@ class TrackDataset():
         self._split_skewed()
         self._split_valid_train()
         self._batch_x_shape = None
-        self._batch_y_shape = None 
+        self._batch_y_shape = None
         self._mode = None
         self._color = None
     def valid_sample_count(self):
@@ -109,7 +109,7 @@ class TrackDataset():
         self._batch_y_shape = (batch_size, 1)
         self._color = color
     def batch_generator(self, mode='train'):
-        if mode != 'train' and mode != 'valid':
+        if mode != 'train' and mode != 'valid' and mode != 'example':
             raise ValueError('Unknown mode {0}'.format(mode))
         skewed_size = np.uint32(self._train.steering.value_counts().max() *
                                 self._skewed_count *
@@ -122,7 +122,7 @@ class TrackDataset():
         while True:
             x = np.zeros(self._batch_x_shape)
             y = np.zeros(self._batch_y_shape)
-            if mode == 'train':
+            if mode == 'train' or mode == 'example':
                 skewed_samples = self._sample_from_skewed(skewed_size)
                 data = self._train.append(skewed_samples)
                 data.reset_index(inplace=True, drop=True)
@@ -137,9 +137,12 @@ class TrackDataset():
                     raise ValueError('Image not found {0}'.format(im_path))
                 im = common.load_image(im_path, color=self._color)
                 im, y_ = self._augment(im, steering)
-                im = cv.resize(im, im_shape).astype(np.float32)
-                x[i] = self.normalize_image(im, im_std=im_std)
-                y[i] = y_
+                im = cv.resize(im, im_shape)
+                if mode == 'example':
+                    yield im, y_
+                else:
+                    x[i] = self.normalize_image(im.astype(np.float32), im_std=im_std)
+                    y[i] = y_
             yield x, y
     @classmethod
     def normalize_image(cls, im, im_std=None):
@@ -252,4 +255,3 @@ class TrackDataset():
     def save_data(self, filename, data):
         with open(filename, 'wb') as fd:
              pickle.dump(data, fd)
-        

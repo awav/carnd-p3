@@ -1,21 +1,23 @@
 # The MIT License (MIT)
-# 
+#
 # Copyright 2017 Artem Artemev, im@artemav.com
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software 
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 # and associated documentation files (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge, publish, distribute, 
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
 # sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 # The above copyright notice and this permission notice shall be included in all copies or
 # substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
-# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
-# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+import matplotlib
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2 as cv
@@ -76,7 +78,7 @@ def _list_images(folder, regex=None):
 
 def load_images(*dirs, color='RGB'):
     return np.array([im for im in _load_images(*dirs, color=color)])
-    
+
 def _load_images(*dirs, color='RGB'):
     """
     Generator to list images in specified dirs.
@@ -144,6 +146,22 @@ def show_image(ims, ncols=1, nrows=1, window_title=None, titles=None, cmaps=None
     fig.subplots_adjust(wspace=0)
     fig.show()
 
+def show_grid(ims, rows, cols):
+    plt.figure(figsize = (rows, cols))
+    gs = gridspec.GridSpec(rows, cols)
+    gs.update(wspace=0.025, hspace=0.025)
+    for i in range(rows * cols):
+        ax = plt.subplot(gs[i])
+        plt.axis('off')
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_aspect('equal')
+        ax.imshow(ims[i])
+        #plt.subp
+    plt.show()
+
 def equalize_hist(im, show=False):
     im_eq = cv.cvtColor(im, cv.COLOR_RGB2YCrCb)
     zeros = np.zeros(im_eq.shape[:2])
@@ -171,4 +189,3 @@ def equalize_hist(im, show=False):
 ## data/OwnCollection/non-vehicles/MiddleClose
 ## Test accuracy: 0.99821
 ## AUC score: 0.99997
-
