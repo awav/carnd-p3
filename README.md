@@ -260,8 +260,8 @@ In fact augmentation process dived in two phases:
 1. When data are loaded by an instance of `TrackDataset`.
     a. It triples dataset by using `right` and `left` camera frames.
     b. It divides dataset on training and validation sets.
-        - For building validation set I reject all
-        
+        For building validation set I reject all spikes from original table. In fact, there was thee spikes: ~`-0.25f`, `0.0f`, ~`0.25f` values. I created for them special data table - called `self._skewed_data`. Using it I can balance training and validation datasets.
+
         ```python
         def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
             self._data_path = data_path
@@ -272,6 +272,30 @@ In fact augmentation process dived in two phases:
             self._split_valid_train()
         ```
 
+        ```python
+        def _split_valid_train(self, nonskewed_test_size=0.15):
+            x, xval, y, yval = train_test_split(
+                 self._nonskewed_data.image,
+                 self._nonskewed_data.steering,
+                 test_size=nonskewed_test_size)
+            _, counts  = np.unique(yval, return_counts=True)
+            sample_size = np.uint32(self._skewed_count * counts.max() * 0.85)
+            skewed_samples = self._sample_from_skewed(sample_size, drop=True)
+            xval = xval.append(skewed_samples.image)
+            yval = yval.append(skewed_samples.steering)
+            self._train = pd.DataFrame({'image':x, 'steering':y})
+            self._valid = pd.DataFrame({'image':xval, 'steering':yval})
+            self._train.reset_index(inplace=True, drop=True)
+            self._valid.reset_index(inplace=True, drop=True)
+            self._skewed_size = np.uint32(
+                self._train.steering.value_counts().max() *
+                self._skewed_count *
+                0.85)
+        ```
+
+        Distribution of validation dataset:
+
+        ![Alt text](project/valid_dataset.png)
 
 2. During generation of batches for training and validation
 
