@@ -312,7 +312,7 @@ Examples of augmented images:
 
 ![Alt text](project/generated.png)
 
-In fact augmentation process dived in two phases:
+#### In fact the augmentation process dived in two phases:
 
 1. When data are loaded by an instance of `TrackDataset`.
 
