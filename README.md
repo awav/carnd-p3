@@ -60,9 +60,9 @@ I started with learning rate `1E-1` for **Adam** and could get only `0.1 validat
 
 Finally, I have gotten good result on first track, after several attempts of building neural networks and moreover my car almost finished challenge track.
 
->>> NOTE: Before submitting images into the model the normalization procedure is applied: the mean of the image is subtracted from it, given result is divided by standard deviation of the original image, for avoiding zero division the standardisation algorithm replaces `0.0f` standard deviation with `1/(image_width * image_height * image_depth)` value.
+> NOTE: Before submitting images into the model the normalization procedure is applied: the mean of the image is subtracted from it, given result is divided by standard deviation of the original image, for avoiding zero division the standardisation algorithm replaces `0.0f` standard deviation with `1/(image_width * image_height * image_depth)` value.
 
->>> NOTE: As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
+> NOTE: As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
 
 ##### Architectures
 
