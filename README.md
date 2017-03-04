@@ -251,55 +251,6 @@ In this project I used random adjustments:
 - Add shadow to the frame. The logic behind of it the same as for changing brightness. There are some parts of the road which are covered by shadow and the model can erroneously assume that it is border of the road and try to adjust the steering angle.
 - Using frames from left and right camera. This is very important part of augmenting because using it we triple size of dataset. Once data is loaded, I select frames from right and left camera and change centre steering angle for them according this rule: `arctan(tan(center_angle) +(-) 0.25)`. The logic is simple: the car must always stay on the centre of road, whenever the car not on this centre the driver changes steering angle such that the car projection goes the imaginary point in 4 meters ahead which lies on desired centre. We take the distance between camers as 1 meter and using simple geometry calculations obtain the formula for right and left camera images: `arctan(tan(center_angle) +(-) 1/4)`, for all right's camera images we should use minus.
 
-Examples of augmented images:
-
-![Alt text](project/generated.png)
-
-In fact augmentation process dived in two phases:
-
-1. When data are loaded by an instance of `TrackDataset`.
-    a. It triples dataset by using `right` and `left` camera frames.
-    b. It divides dataset on training and validation sets.
-        For building validation set I reject all spikes from original table. In fact, there was thee spikes: ~`-0.25f`, `0.0f`, ~`0.25f` values. I created for them special data table - called `self._skewed_data`. Using it I can balance training and validation datasets.
-
-        ```python
-        def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
-            self._data_path = data_path
-            self._images_path = os.path.join(data_path, im_path)
-            csv_path = os.path.join(data_path, driving_log)
-            self._load_steering_data(csv_path)
-            self._split_skewed()
-            self._split_valid_train()
-        ```
-
-        ```python
-        def _split_valid_train(self, nonskewed_test_size=0.15):
-            x, xval, y, yval = train_test_split(
-                 self._nonskewed_data.image,
-                 self._nonskewed_data.steering,
-                 test_size=nonskewed_test_size)
-            _, counts  = np.unique(yval, return_counts=True)
-            sample_size = np.uint32(self._skewed_count * counts.max() * 0.85)
-            skewed_samples = self._sample_from_skewed(sample_size, drop=True)
-            xval = xval.append(skewed_samples.image)
-            yval = yval.append(skewed_samples.steering)
-            self._train = pd.DataFrame({'image':x, 'steering':y})
-            self._valid = pd.DataFrame({'image':xval, 'steering':yval})
-            self._train.reset_index(inplace=True, drop=True)
-            self._valid.reset_index(inplace=True, drop=True)
-            self._skewed_size = np.uint32(
-                self._train.steering.value_counts().max() *
-                self._skewed_count *
-                0.85)
-        ```
-
-        Distribution of validation dataset:
-
-        ![Alt text](project/valid_dataset.png)
-
-2. During generation of batches for training and validation
-
-
 Code of augmentation:
 ```python
 class Augment():
@@ -355,4 +306,106 @@ class Augment():
         yb = int(rnd.uniform(low=bottom[0], high=bottom[1]) * im.shape[0])
         return im[yt:-yb]
 
+```
+
+Examples of augmented images:
+
+![Alt text](project/generated.png)
+
+In fact augmentation process dived in two phases:
+
+1. When data are loaded by an instance of `TrackDataset`.
+
+a. It triples dataset by using `right` and `left` camera frames.
+b. It divides dataset on training and validation sets.
+
+For building validation set I reject all spikes from original table. In fact, there was thee spikes: ~`-0.25f`, `0.0f`, ~`0.25f` values. I created for them special data table - called `self._skewed_data`. Using it I can balance training and validation datasets.
+
+```python
+def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
+    self._data_path = data_path
+    self._images_path = os.path.join(data_path, im_path)
+    sv_path = os.path.join(data_path, driving_log)
+    elf._load_steering_data(csv_path)
+    self._split_skewed()
+    self._split_valid_train()
+```
+
+```python
+def _split_valid_train(self, nonskewed_test_size=0.15):
+    x, xval, y, yval = train_test_split(
+         self._nonskewed_data.image,
+         self._nonskewed_data.steering,
+         test_size=nonskewed_test_size)
+    _, counts  = np.unique(yval, return_counts=True)
+    sample_size = np.uint32(self._skewed_count * counts.max() * 0.85)
+    skewed_samples = self._sample_from_skewed(sample_size, drop=True)
+    xval = xval.append(skewed_samples.image)
+    yval = yval.append(skewed_samples.steering)
+    self._train = pd.DataFrame({'image':x, 'steering':y})
+    self._valid = pd.DataFrame({'image':xval, 'steering':yval})
+    self._train.reset_index(inplace=True, drop=True)
+    self._valid.reset_index(inplace=True, drop=True)
+    self._skewed_size = np.uint32(
+        self._train.steering.value_counts().max() *
+        self._skewed_count *
+            0.85)
+```
+
+The distribution of dataset received after using `right` and `left` images in augmentation:
+
+![Alt text](project/raw_3xsteering.png)
+
+The derived distribution of validation dataset:
+
+![Alt text](project/valid_dataset.png)
+
+You can see that this approached helped expand the range of steering angles up to `-0.75`-`0.75`. This is much better, but still not enough and ideally we need to take some samples from custom recorded video. I decided to leave it as is and look how the car will behave after learning on this augmented dataset.
+
+2. Image samples augmented during generation of batches for training and validation:
+
+I wrote very simple generator which is randomly adjusts batch images using `Augment` class:
+
+```python
+def init_batch_generator(self, batch_size=128, image_size=(128,128,3), color='RGB'):
+    self._batch_x_shape = (batch_size, *image_size)
+    self._batch_y_shape = (batch_size, 1)
+    self._color = color
+
+def batch_generator(self, mode='train'):
+    if mode != 'train' and mode != 'valid' and mode != 'example':
+        raise ValueError('Unknown mode {0}'.format(mode))
+    skewed_size = np.uint32(self._train.steering.value_counts().max() *
+                            self._skewed_count *
+                            0.85)
+    train_size = skewed_size + self._train.shape[0]
+    batch_shape = self._batch_x_shape
+    batch_size = self._batch_x_shape[0]
+    im_shape = self._batch_x_shape[1:3]
+    im_std = 1.0 / np.sqrt(batch_shape[1] * batch_shape[2] * batch_shape[3])
+    while True:
+        x = np.zeros(self._batch_x_shape)
+        y = np.zeros(self._batch_y_shape)
+        if mode == 'train' or mode == 'example':
+            skewed_samples = self._sample_from_skewed(skewed_size)
+            data = self._train.append(skewed_samples)
+            data.reset_index(inplace=True, drop=True)
+        else:
+            data = self._valid
+        batch = self._sample_batch(data, batch_size)
+        for i in batch.index:
+            filename = batch.loc[i, 'image']
+            steering = batch.loc[i, 'steering']
+            im_path = os.path.join(self._data_path, filename.strip())
+            if not os.path.exists(im_path):
+                raise ValueError('Image not found {0}'.format(im_path))
+            im = common.load_image(im_path, color=self._color)
+            im, y_ = self._augment(im, steering)
+            im = cv.resize(im, im_shape)
+            if mode == 'example':
+                yield im, y_
+            else:
+                x[i] = self.normalize_image(im.astype(np.float32), im_std=im_std)
+                y[i] = y_
+        yield x, y
 ```
