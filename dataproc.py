@@ -47,11 +47,13 @@ class Augment():
         else:
            rnd.seed(seed)
     @staticmethod
-    def brightness(im, lbl, low=0.2, high=1.1, prob=[0.5, 0.5]):
+    #def brightness(im, lbl, low=0.25, high=1.15, prob=[0.5, 0.5]):
+    def brightness(im, lbl, low=0.25, high=1.2, prob=[0.5, 0.5]):
         if rnd.choice([1,0], p=prob) == 1:
             hsv = np.float32(common.cvt_color(np.uint8(im), color='HSV', src='RGB'))
             adjust = rnd.uniform(low=low, high=high)
             hsv[:,:,2] *= adjust
+            hsv = np.clip(hsv, 0, 255)
             return cv.cvtColor(np.uint8(hsv), cv.COLOR_HSV2RGB), lbl
         else:
             return im, lbl
@@ -62,11 +64,11 @@ class Augment():
         else:
             return im, lbl
     @staticmethod
-    def shadow(im, lbl, low=0.4, high=0.8, prob=[0.5, 0.5]):
+    def shadow(im, lbl, low=0.25, high=0.7, prob=[0.5, 0.5]):
         if rnd.choice([1,0], p=prob) == 1:
             im = np.float32(im)
             height, width, _ = im.shape
-            adjust = rnd.uniform(low=0, high=high)
+            adjust = rnd.uniform(low=low, high=high)
             xu, xd = rnd.uniform(low=0, high=width, size=2)
             alpha = height / (xd - xu)
             beta = - (alpha * xu)
@@ -81,10 +83,10 @@ class Augment():
         else:
             return im, lbl
     @staticmethod
-    def crop_height(im, lbl, top=(0.3, 0.450), bottom=(0.075, 0.175)):
+    def crop_height(im, top=(0.325, 0.475), bottom=(0.075, 0.175)):
         yt = int(rnd.uniform(low=top[0], high=top[1]) * im.shape[0])
         yb = int(rnd.uniform(low=bottom[0], high=bottom[1]) * im.shape[0])
-        return im[yt:-yb,:,:], lbl
+        return im[yt:-yb]
 
 class TrackDataset():
     def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
@@ -98,6 +100,10 @@ class TrackDataset():
         self._batch_y_shape = None 
         self._mode = None
         self._color = None
+    def valid_sample_count(self):
+        return self._valid.shape[0]
+    def train_sample_count(self):
+        return self._train.shape[0] + self._skewed_size
     def init_batch_generator(self, batch_size=128, image_size=(128,128,3), color='RGB'):
         self._batch_x_shape = (batch_size, *image_size)
         self._batch_y_shape = (batch_size, 1)
@@ -112,12 +118,8 @@ class TrackDataset():
         batch_shape = self._batch_x_shape
         batch_size = self._batch_x_shape[0]
         im_shape = self._batch_x_shape[1:3]
-        mark = 0
-        print(im_shape, batch_shape)
         im_std = 1.0 / np.sqrt(batch_shape[1] * batch_shape[2] * batch_shape[3])
         while True:
-            print("MARK: {0}".format(mark))
-            mark += 1
             x = np.zeros(self._batch_x_shape)
             y = np.zeros(self._batch_y_shape)
             if mode == 'train':
@@ -133,16 +135,24 @@ class TrackDataset():
                 im_path = os.path.join(self._data_path, filename.strip())
                 if not os.path.exists(im_path):
                     raise ValueError('Image not found {0}'.format(im_path))
-                print(im_path, self._color)
                 im = common.load_image(im_path, color=self._color)
                 im, y_ = self._augment(im, steering)
-                plt.imshow(im); plt.show()
                 im = cv.resize(im, im_shape).astype(np.float32)
-                xmean = np.mean(im)
-                xstd = max(np.std(im, ddof=1), im_std)
-                x[i] = (im - xmean) / xstd
+                x[i] = self.normalize_image(im, im_std=im_std)
                 y[i] = y_
             yield x, y
+    @classmethod
+    def normalize_image(cls, im, im_std=None):
+        if im_std == None:
+            im_std = 1.0 / np.sqrt(im.shape[0] * im.shape[1] * im.shape[2])
+        xmean = np.mean(im)
+        xstd = max(np.std(im, ddof=1), im_std)
+        return (im - xmean) / xstd
+    @classmethod
+    def preprocess_image(cls, im, image_shape=(128,128)):
+        im = Augment.crop_height(im, top=(0.45,0.45), bottom=(0.15,0.15))
+        im = cv.resize(im, image_shape).astype(np.float32)
+        return cls.normalize_image(im)
     def show_histograms(self):
         matplotlib.rc('xtick', labelsize=15)
         matplotlib.rc('ytick', labelsize=15)
@@ -171,7 +181,7 @@ class TrackDataset():
         self._valid.steering.hist(ax=ax2, alpha=0.5, bins=100)
         fig.show()
     def _augment(self, im, steering):
-        im, steering = Augment.crop_height(im, steering)
+        im = Augment.crop_height(im)
         im, steering = Augment.flip_horizontal(im, steering)
         im, steering = Augment.brightness(im, steering)
         im, steering = Augment.shadow(im, steering)
@@ -199,6 +209,10 @@ class TrackDataset():
         self._valid = pd.DataFrame({'image':xval, 'steering':yval})
         self._train.reset_index(inplace=True, drop=True)
         self._valid.reset_index(inplace=True, drop=True)
+        self._skewed_size = np.uint32(
+            self._train.steering.value_counts().max() *
+            self._skewed_count *
+            0.85)
     def _split_skewed(self, skewmax=1000):
         vals = self._data.steering.value_counts()
         ids = vals.index[vals.values >= skewmax]

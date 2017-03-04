@@ -16,6 +16,8 @@ from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
 
+from dataproc import TrackDataset as trd
+
 sio = socketio.Server()
 app = Flask(__name__)
 model = None
@@ -44,7 +46,7 @@ class SimplePIController:
 
 
 controller = SimplePIController(0.1, 0.002)
-set_speed = 9
+set_speed = 10
 controller.set_desired(set_speed)
 
 
@@ -60,9 +62,10 @@ def telemetry(sid, data):
         # The current image from the center camera of the car
         imgString = data["image"]
         image = Image.open(BytesIO(base64.b64decode(imgString)))
-        image_array = np.asarray(image)
+        image_prep = trd.preprocess_image(np.array(image))
+        image_array = np.asarray(image_prep)
         steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
-
+        
         throttle = controller.update(float(speed))
 
         print(steering_angle, throttle)
