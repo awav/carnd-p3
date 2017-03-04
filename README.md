@@ -315,6 +315,7 @@ Examples of augmented images:
 #### In fact the augmentation process dived in two phases:
 
 1. When data are loaded by an instance of `TrackDataset`.
+
    a. It triples dataset by using `right` and `left` camera frames
    b. It divides dataset on training and validation sets
 
