@@ -56,11 +56,13 @@ I was really disappointed with gained results, but I didn't want to go with NVID
 * Adam optimizer with `1E-03` learning rate
 * `20` epochs
 
-I started with learning rate `1E-1` for **Adam** and could get only `0.1 validation error`, but when I decreased learning rate to `1E-04` I have got **0.01 validation error**, such small change improved accuracy significantly. Moreover, the learning
+I started with learning rate `1E-1` for **Adam** and could get only `0.1 validation error`, but when I decreased learning rate to `1E-04` I have got **0.01 validation error**, such small change improved accuracy significantly.
 
-I finally have gotten good result on first track, after several attempts of building neural networks and moreover my car almost finished challenge track.
+Finally, I have gotten good result on first track, after several attempts of building neural networks and moreover my car almost finished challenge track.
 
-As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
+>>> NOTE: Before submitting images into the model the normalization procedure is applied: the mean of the image is subtracted from it, given result is divided by standard deviation of the original image, for avoiding zero division the standardisation algorithm replaces `0.0f` standard deviation with `1/(image_width * image_height * image_depth)` value.
+
+>>> NOTE: As you may notice the number of parameter of _DenseNet_ and _SimpleNet_ almost identical: `189,373` and `183,683` respectively, but training time is for _SimpleNet_ is extremely lower. I spent less than 30 minutes on 20 epochs. I think it is a good theme for research to figure out what's going on and why _DenseNet_ is so computationally expensive.
 
 ##### Architectures
 
@@ -236,8 +238,96 @@ Non-trainable params: 1,792
 ### Details of Augmentation Process
 
 The trick is that I used only data provided by `Udacity`. I did not use generated data. It encouraged me to explore technique of augmenting once more time after Traffic Sign Classification problem.
+
+Let's check the distribution of steering angles in given dataset:
+
+![Alt text](project/initial_dataset.png)
+
+The distribution is very biased towards centre. The prevailing number of `0.0f` centre angles does not add more confidence that future model can gain something useful from this bare dataset. The `log` distribution reveals another pattern that dataset of angles is skewed to `-0.5f`-`0.5f` range and this is not good sign also. Whenever the car will have a position on the road when steering angle should be between `-1.0f`-`-0.4999f` and `0.4999f`-`1.0f` there will be high likelihood that the decision of the model will be faulty and will lead to fatal consequences.
+
 In this project I used random adjustments:
 - Horizontal flips. If flip happens the sign of steering angle changes too.
 - Brightness adjustments by changing the saturation of `HSV` color map. Actually, this should help to adopt model to brightness changes. E.g. challenge track has shiny parts of the track, but also there are places where car should go in absolute 'darkness'.
 - Add shadow to the frame. The logic behind of it the same as for changing brightness. There are some parts of the road which are covered by shadow and the model can erroneously assume that it is border of the road and try to adjust the steering angle.
-- Using frames from left and right camera. This is very important part of augmenting because using it we triple size of dataset.
+- Using frames from left and right camera. This is very important part of augmenting because using it we triple size of dataset. Once data is loaded, I select frames from right and left camera and change centre steering angle for them according this rule: `arctan(tan(center_angle) +(-) 0.25)`. The logic is simple: the car must always stay on the centre of road, whenever the car not on this centre the driver changes steering angle such that the car projection goes the imaginary point in 4 meters ahead which lies on desired centre. We take the distance between camers as 1 meter and using simple geometry calculations obtain the formula for right and left camera images: `arctan(tan(center_angle) +(-) 1/4)`, for all right's camera images we should use minus.
+
+Examples of augmented images:
+
+![Alt text](project/generated.png)
+
+In fact augmentation process dived in two phases:
+
+1. When data are loaded by an instance of `TrackDataset`.
+    a. It triples dataset by using `right` and `left` camera frames.
+    b. It divides dataset on training and validation sets.
+        - For building validation set I reject all 
+        ```python
+        def __init__(self, data_path='data/', driving_log='driving_log.csv', im_path='IMG/'):
+            self._data_path = data_path
+            self._images_path = os.path.join(data_path, im_path)
+            csv_path = os.path.join(data_path, driving_log)
+            self._load_steering_data(csv_path)
+            self._split_skewed()
+            self._split_valid_train()
+        ```
+
+
+2. During generation of batches for training and validation
+
+
+Code of augmentation:
+```python
+class Augment():
+    def __new__(cls, *args, **kvargs):
+        raise ValueError('Not possible to create instance of this class')
+    @staticmethod
+    def setseed(seed=None):
+        if seed == None:
+           a = rnd.uniform(0,1)
+           b = np.uint32(rnd.uniform(1, 1000))
+           rnd.seed(np.uint32(time.time() * a) + b)
+        else:
+           rnd.seed(seed)
+    @staticmethod
+    #def brightness(im, lbl, low=0.25, high=1.15, prob=[0.5, 0.5]):
+    def brightness(im, lbl, low=0.25, high=1.2, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            hsv = np.float32(common.cvt_color(np.uint8(im), color='HSV', src='RGB'))
+            adjust = rnd.uniform(low=low, high=high)
+            hsv[:,:,2] *= adjust
+            hsv = np.clip(hsv, 0, 255)
+            return cv.cvtColor(np.uint8(hsv), cv.COLOR_HSV2RGB), lbl
+        else:
+            return im, lbl
+    @staticmethod
+    def flip_horizontal(im, lbl, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            return np.fliplr(im), -lbl
+        else:
+            return im, lbl
+    @staticmethod
+    def shadow(im, lbl, low=0.25, high=0.7, prob=[0.5, 0.5]):
+        if rnd.choice([1,0], p=prob) == 1:
+            im = np.float32(im)
+            height, width, _ = im.shape
+            adjust = rnd.uniform(low=low, high=high)
+            xu, xd = rnd.uniform(low=0, high=width, size=2)
+            alpha = height / (xd - xu)
+            beta = - (alpha * xu)
+            side = rnd.choice([0, 1])
+            for row in range(height):
+                col = np.int32((row - beta) / alpha)
+                if side == 1:
+                    im[row,:col] *= adjust
+                else:
+                    im[row,col:] *= adjust
+            return np.uint8(im), lbl
+        else:
+            return im, lbl
+    @staticmethod
+    def crop_height(im, top=(0.325, 0.475), bottom=(0.075, 0.175)):
+        yt = int(rnd.uniform(low=top[0], high=top[1]) * im.shape[0])
+        yb = int(rnd.uniform(low=bottom[0], high=bottom[1]) * im.shape[0])
+        return im[yt:-yb]
+
+```
