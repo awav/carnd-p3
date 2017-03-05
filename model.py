@@ -88,30 +88,22 @@ class BehaviorModel:
         pool = (2,2)
         stride = (1,1)
         mode = 'valid'
-        # Convolution 8x5x5
         m.add(Convolution2D(8, 5, 5,
              activation=act, input_shape=input_shape, border_mode=mode, subsample=stride))
         m.add(MaxPooling2D(pool_size=pool))
-        # Convolution 8x5x5
         m.add(Convolution2D(8, 5, 5,
              activation=act, border_mode=mode, subsample=stride))
         m.add(Activation(act))
         m.add(MaxPooling2D(pool_size=pool))
-        # Convolution 16x4x4
         m.add(Convolution2D(16, 4, 4,
              activation=act, border_mode=mode, subsample=stride))
         m.add(MaxPooling2D(pool_size=pool))
-        # Convolution 16x5x5
         m.add(Convolution2D(16, 5, 5,
              activation=act, border_mode=mode, subsample=stride))
         m.add(Flatten())
-        # Dense 128
         m.add(Dense(128, W_regularizer=l2(decay), activation=act))
-        # Dense 50
         m.add(Dense(50, W_regularizer=l2(decay), activation=act))
-        # Dense 10
         m.add(Dense(10, W_regularizer=l2(decay), activation=act))
-        # Dense 1
         m.add(Dense(1, activation='linear', init='he_normal'))
         m.compile(optimizer=Adam(lr=learning_rate), loss='mean_squared_error')
         if show == True:
