@@ -144,12 +144,6 @@ class BehaviorModel:
                                    callbacks=[best_cb, stop_cb])
         backend.clear_session()
     @classmethod
-    def save_model(cls, model, filename='car_model.h5', as_json=True):
-        if as_json == True:
-            with open(filename + '.json', 'w') as fd:
-                 fd.write(model.to_json())
-        model.save(filename)
-    @classmethod
     def _conv(cls, x, filters, act='elu', decay=0.0001):
         x = BatchNormalization(
                 mode=0,
