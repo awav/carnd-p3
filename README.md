@@ -366,7 +366,8 @@ You can see that this approached helped expand the range of steering angles up t
 
 2. Image samples augmented during generation of batches for training and validation:
 
-I wrote very simple generator which is randomly adjusts batch images using `Augment` class:
+I wrote very simple generator which is randomly adjusts batch images using `Augment` class. It does all job online during training, while `GPU` is busy with network learning, the CPU can provide next batch of images.
+I used it also to generate some examples for this report.
 
 ```python
 def init_batch_generator(self, batch_size=128, image_size=(128,128,3), color='RGB'):
@@ -411,3 +412,30 @@ def batch_generator(self, mode='train'):
                 y[i] = y_
         yield x, y
 ```
+### Video generation
+
+I altered a bit `drive.py` script so that it could work with my model. I added pre-process step for input images. It just applies rescaling and normalization step:
+
+```python
+@classmethod
+def normalize_image(cls, im, im_std=None):
+    if im_std == None:
+        im_std = 1.0 / np.sqrt(im.shape[0] * im.shape[1] * im.shape[2])
+    xmean = np.mean(im)
+    xstd = max(np.std(im, ddof=1), im_std)
+    return (im - xmean) / xstd
+@classmethod
+def preprocess_image(cls, im, image_shape=(128,128)):
+    im = Augment.crop_height(im, top=(0.45,0.45), bottom=(0.15,0.15))
+    im = cv.resize(im, image_shape).astype(np.float32)
+    return cls.normalize_image(im)
+```
+
+[Link to the project videos](https://drive.google.com/open?id=0B90SlGxx-BAeZGdBMU5NV0NHekE). The `Google Drive` folder has two videos, `run1` was was generated with _SimpleNet_ model and `run2` was generated with _DenseNet_ model. I also recorded `gif` video, but the size of it is a bit shocking `~700MB` and it is up to you to watch it or not :)
+
+### Discussion
+
+I faced a couple of problems, which I would like to highlight here:
+
+- The **regression problems** are significantly different from **classification problems**. In fact, it is only effect of loss function and what kind of error it generates in backpropagation. _I suppose that `RMSE` loss function is just not the best one for this problem._
+- The data rocks. I still have some troubles with challenge track. If you take a look on [challenge](https://drive.google.com/open?id=0B90SlGxx-BAeckVub1pubS0taTQ) video you will notice that model abnormally reacts on contrast changes and very dark shadows. This happens because I did not include such transformations into my `Augment` class. But even if I include this type of augmentation there is no guarantee that this track will be passed without serious consequences for the car. _It is always better to have good and big dataset rather than non-trivial augmentation process._
