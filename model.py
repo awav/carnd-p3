@@ -83,7 +83,12 @@ class BehaviorModel:
             print(m.summary())
         return m
     @classmethod
-    def model(cls, input_shape, act='elu', decay=0.0002, learning_rate=0.001, show=True):
+    def simplenet_model(cls,
+            input_shape,
+            act='elu',
+            decay=0.0002,
+            learning_rate=0.001,
+            show=True):
         m = Sequential()
         pool = (2,2)
         stride = (1,1)
